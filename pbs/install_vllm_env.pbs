@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 #PBS -N install_vllm_env
 #PBS -l select=1:ncpus=4:mem=32GB:ngpus=1
 #PBS -l walltime=01:00:00

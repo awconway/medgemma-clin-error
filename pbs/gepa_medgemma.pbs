@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 #PBS -N medgemma_gepa
 #PBS -l select=1:ncpus=8:mem=64GB:ngpus=1:gpu_id=A100:gpu_sliced=False
 #PBS -l walltime=08:00:00
@@ -15,11 +15,26 @@ LOG_FILE="logs/medgemma_gepa.${JOB_TAG}.log"
 exec >"${LOG_FILE}" 2>&1
 echo "Logging to ${LOG_FILE}"
 
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+
 # Optional cluster-specific environment setup:
 # module purge
 # module load cuda/12.4
-if command -v module >/dev/null 2>&1 && [ -n "${CUDA_MODULE:-}" ]; then
-  module load "${CUDA_MODULE}"
+if [ -n "${CUDA_MODULE:-}" ]; then
+  if ! command -v module >/dev/null 2>&1; then
+    for MODULE_INIT in /etc/profile.d/modules.sh /usr/share/Modules/init/bash /usr/share/lmod/lmod/init/bash; do
+      if [ -f "${MODULE_INIT}" ]; then
+        # shellcheck disable=SC1090
+        source "${MODULE_INIT}"
+        break
+      fi
+    done
+  fi
+  if command -v module >/dev/null 2>&1; then
+    module load "${CUDA_MODULE}"
+  else
+    echo "CUDA_MODULE is set (${CUDA_MODULE}) but module command is unavailable in this shell." >&2
+  fi
 fi
 
 VLLM_ENV_DIR="${VLLM_ENV_DIR:-.vllm-env}"
@@ -29,12 +44,63 @@ if [ ! -f "${VLLM_ENV_DIR}/bin/activate" ]; then
 fi
 source "${VLLM_ENV_DIR}/bin/activate"
 
+# Discover CUDA/Torch shared library dirs from this venv and add them to LD_LIBRARY_PATH.
+VENV_CUDA_LIBS="$(
+python - <<'PY'
+import glob
+import os
+import site
+
+candidates = []
+roots = []
+for root in site.getsitepackages():
+    if root and os.path.isdir(root):
+        roots.append(root)
+
+for root in roots:
+    patterns = [
+        os.path.join(root, "nvidia", "**", "lib"),
+        os.path.join(root, "nvidia", "**", "lib64"),
+        os.path.join(root, "torch", "lib"),
+    ]
+    for pattern in patterns:
+        for d in glob.glob(pattern, recursive=True):
+            if os.path.isdir(d):
+                candidates.append(os.path.realpath(d))
+
+seen = set()
+ordered = []
+for d in candidates:
+    if d not in seen:
+        seen.add(d)
+        ordered.append(d)
+
+print(":".join(ordered))
+PY
+)"
+
+SYSTEM_CUDA_LIBS=()
+for d in /usr/local/cuda/lib64 /usr/local/cuda-12/lib64 /usr/local/cuda-12.4/lib64; do
+  if [ -d "$d" ]; then
+    SYSTEM_CUDA_LIBS+=("$d")
+  fi
+done
+SYSTEM_CUDA_LIBS_JOINED="$(IFS=:; echo "${SYSTEM_CUDA_LIBS[*]}")"
+
+if [ -n "${VENV_CUDA_LIBS}" ] && [ -n "${SYSTEM_CUDA_LIBS_JOINED}" ]; then
+  export LD_LIBRARY_PATH="${VENV_CUDA_LIBS}:${SYSTEM_CUDA_LIBS_JOINED}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+elif [ -n "${VENV_CUDA_LIBS}" ]; then
+  export LD_LIBRARY_PATH="${VENV_CUDA_LIBS}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+elif [ -n "${SYSTEM_CUDA_LIBS_JOINED}" ]; then
+  export LD_LIBRARY_PATH="${SYSTEM_CUDA_LIBS_JOINED}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+fi
+
 if ! python - <<'PY'
 import ctypes
 ctypes.CDLL("libcudart.so.12")
 PY
 then
-  echo "Missing CUDA runtime (libcudart.so.12). Set CUDA_MODULE (example: CUDA_MODULE=cuda/12.4) or fix LD_LIBRARY_PATH." >&2
+  echo "Missing CUDA runtime (libcudart.so.12). Tried venv/system CUDA library paths; if needed set CUDA_MODULE or LD_LIBRARY_PATH manually." >&2
   exit 1
 fi
 
@@ -50,6 +116,8 @@ fi
 # - OPENAI_API_KEY is recommended for stronger GEPA reflection (defaults to GPT-5.2 reflection if provided)
 export HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN for gated MedGemma access.}"
 export HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN:-$HF_TOKEN}"
+export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
+export HUGGINGFACE_HUB_CACHE="${HUGGINGFACE_HUB_CACHE:-$HF_HOME/hub}"
 export MEDGEMMA_MODEL_NAME="${MEDGEMMA_MODEL_NAME:-sft_adapter}"
 export MEDGEMMA_API_KEY="${MEDGEMMA_API_KEY:-EMPTY}"
 
