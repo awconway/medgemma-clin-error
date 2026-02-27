@@ -1,0 +1,30 @@
+#!/bin/bash
+#PBS -N gpt52_gepa
+#PBS -l select=1:ncpus=8:mem=48gb
+#PBS -l walltime=06:00:00
+#PBS -j oe
+#PBS -o logs/gpt52_gepa.$PBS_JOBID.log
+
+set -euo pipefail
+
+cd "$PBS_O_WORKDIR"
+mkdir -p logs artifacts
+
+source .venv/bin/activate
+
+# Load environment variables from .env if present.
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+export OPENAI_API_KEY="${OPENAI_API_KEY:?Set OPENAI_API_KEY.}"
+export OPENAI_GPT52_MODEL="${OPENAI_GPT52_MODEL:-gpt-5.2}"
+
+python scripts/prepare_experiment_data.py
+python scripts/run_gepa_experiment.py \
+  --target gpt52 \
+  --auto medium \
+  --num-threads 8 \
+  --run-name "gpt52_${PBS_JOBID}"
