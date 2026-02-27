@@ -4,16 +4,23 @@
 #PBS -l walltime=08:00:00
 #PBS -m abe
 #PBS -j oe
-#PBS -o logs/medgemma_gepa.$PBS_JOBID.log
+#PBS -o logs/medgemma_gepa.log
 
 set -euo pipefail
 
 cd "$PBS_O_WORKDIR"
 mkdir -p logs artifacts
+JOB_TAG="${PBS_JOBID:-manual}"
+LOG_FILE="logs/medgemma_gepa.${JOB_TAG}.log"
+exec >"${LOG_FILE}" 2>&1
+echo "Logging to ${LOG_FILE}"
 
 # Optional cluster-specific environment setup:
 # module purge
 # module load cuda/12.4
+if command -v module >/dev/null 2>&1 && [ -n "${CUDA_MODULE:-}" ]; then
+  module load "${CUDA_MODULE}"
+fi
 
 VLLM_ENV_DIR="${VLLM_ENV_DIR:-.vllm-env}"
 if [ ! -f "${VLLM_ENV_DIR}/bin/activate" ]; then
@@ -21,6 +28,15 @@ if [ ! -f "${VLLM_ENV_DIR}/bin/activate" ]; then
   exit 1
 fi
 source "${VLLM_ENV_DIR}/bin/activate"
+
+if ! python - <<'PY'
+import ctypes
+ctypes.CDLL("libcudart.so.12")
+PY
+then
+  echo "Missing CUDA runtime (libcudart.so.12). Set CUDA_MODULE (example: CUDA_MODULE=cuda/12.4) or fix LD_LIBRARY_PATH." >&2
+  exit 1
+fi
 
 # Load environment variables from .env if present.
 if [ -f .env ]; then

@@ -4,12 +4,16 @@
 #PBS -l walltime=01:00:00
 #PBS -m abe
 #PBS -j oe
-#PBS -o logs/install_vllm_env.$PBS_JOBID.log
+#PBS -o logs/install_vllm_env.log
 
 set -euo pipefail
 
 cd "$PBS_O_WORKDIR"
 mkdir -p logs
+JOB_TAG="${PBS_JOBID:-manual}"
+LOG_FILE="logs/install_vllm_env.${JOB_TAG}.log"
+exec >"${LOG_FILE}" 2>&1
+echo "Logging to ${LOG_FILE}"
 
 # Optional cluster-specific environment setup:
 # module purge

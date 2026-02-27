@@ -100,6 +100,7 @@ Before `qsub`:
 - Ensure `.vllm-env` exists on the shared filesystem and contains `vllm`, `dspy`, `polars`, and runtime deps for the MedGemma jobs.
 - You can update that env via `qsub pbs/install_vllm_env.pbs` (supports `TORCH_BACKEND`; assumes `.vllm-env` already exists).
 - For MedGemma job, set `HF_TOKEN` with access to `google/medgemma-27b-it`.
+- If CUDA libraries are not on default library path, pass a module name at submit time, e.g. `CUDA_MODULE=cuda/12.4 qsub pbs/baseline_medgemma.pbs`.
 - For GPT job, set `OPENAI_API_KEY`.
 - Adjust PBS resource lines (`select`, `ngpus`, `mem`, `walltime`) for your cluster.
 - The MedGemma PBS script auto-selects a random free localhost port and sets `MEDGEMMA_API_BASE` automatically.

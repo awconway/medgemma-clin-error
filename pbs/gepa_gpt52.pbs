@@ -3,12 +3,16 @@
 #PBS -l select=1:ncpus=8:mem=48gb
 #PBS -l walltime=06:00:00
 #PBS -j oe
-#PBS -o logs/gpt52_gepa.$PBS_JOBID.log
+#PBS -o logs/gpt52_gepa.log
 
 set -euo pipefail
 
 cd "$PBS_O_WORKDIR"
 mkdir -p logs artifacts
+JOB_TAG="${PBS_JOBID:-manual}"
+LOG_FILE="logs/gpt52_gepa.${JOB_TAG}.log"
+exec >"${LOG_FILE}" 2>&1
+echo "Logging to ${LOG_FILE}"
 
 source .venv/bin/activate
 
