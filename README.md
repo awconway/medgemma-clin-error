@@ -58,6 +58,20 @@ python scripts/prepare_experiment_data.py
 python scripts/run_gepa_experiment.py --target medgemma --auto medium --run-name medgemma_local
 ```
 
+### 2b) Baseline MedGemma Accuracy (no GEPA)
+
+This runs the same evaluator with the fine-tuned model only:
+
+```bash
+python scripts/prepare_experiment_data.py
+python scripts/run_gepa_experiment.py --target medgemma --skip-gepa --run-name baseline_medgemma_local
+```
+
+Primary baseline outputs:
+
+- `artifacts/baseline_medgemma_local/run_summary.json`
+- `artifacts/baseline_medgemma_local/baseline_test_metrics.json`
+
 ### 3) Run GEPA For GPT-5.2
 
 ```bash
@@ -75,17 +89,20 @@ If your account uses a different model id, set `OPENAI_GPT52_MODEL` to that id.
 Submit:
 
 ```bash
+qsub pbs/install_vllm_env.pbs
 qsub pbs/gepa_medgemma.pbs
 qsub pbs/gepa_gpt52.pbs
+qsub pbs/baseline_medgemma.pbs
 ```
 
 Before `qsub`:
 
-- Ensure `.venv` and dependencies exist on the shared filesystem.
-- Ensure `vllm` is installed in that environment for the MedGemma job.
+- Ensure `.vllm-env` exists on the shared filesystem and contains `vllm`, `dspy`, `polars`, and runtime deps for the MedGemma jobs.
+- You can update that env via `qsub pbs/install_vllm_env.pbs` (supports `TORCH_BACKEND`; assumes `.vllm-env` already exists).
 - For MedGemma job, set `HF_TOKEN` with access to `google/medgemma-27b-it`.
 - For GPT job, set `OPENAI_API_KEY`.
 - Adjust PBS resource lines (`select`, `ngpus`, `mem`, `walltime`) for your cluster.
+- The MedGemma PBS script auto-selects a random free localhost port and sets `MEDGEMMA_API_BASE` automatically.
 
 ### Outputs
 

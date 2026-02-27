@@ -1,10 +1,10 @@
 #!/bin/bash
-#PBS -N medgemma_gepa
+#PBS -N medgemma_baseline
 #PBS -l select=1:ncpus=8:mem=64GB:ngpus=1:gpu_id=A100:gpu_sliced=False
 #PBS -l walltime=08:00:00
 #PBS -m abe
 #PBS -j oe
-#PBS -o logs/medgemma_gepa.$PBS_JOBID.log
+#PBS -o logs/medgemma_baseline.$PBS_JOBID.log
 
 set -euo pipefail
 
@@ -31,7 +31,6 @@ fi
 
 # Required:
 # - HF_TOKEN must have access to google/medgemma-27b-it
-# - OPENAI_API_KEY is recommended for stronger GEPA reflection (defaults to GPT-5.2 reflection if provided)
 export HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN for gated MedGemma access.}"
 export MEDGEMMA_MODEL_NAME="${MEDGEMMA_MODEL_NAME:-sft_adapter}"
 export MEDGEMMA_API_KEY="${MEDGEMMA_API_KEY:-EMPTY}"
@@ -80,7 +79,7 @@ python -m vllm.entrypoints.openai.api_server \
   --dtype bfloat16 \
   --max-model-len 8192 \
   --gpu-memory-utilization 0.85 \
-  > "logs/vllm_${PBS_JOBID}.log" 2>&1 &
+  > "logs/vllm_baseline_${PBS_JOBID}.log" 2>&1 &
 VLLM_PID=$!
 
 cleanup() {
@@ -100,6 +99,6 @@ curl -fsS "http://${VLLM_HOST}:${VLLM_PORT}/v1/models" >/dev/null
 python scripts/prepare_experiment_data.py
 python scripts/run_gepa_experiment.py \
   --target medgemma \
-  --auto medium \
+  --skip-gepa \
   --num-threads 8 \
-  --run-name "medgemma_${PBS_JOBID}"
+  --run-name "baseline_medgemma_${PBS_JOBID}"

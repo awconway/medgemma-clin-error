@@ -1,0 +1,41 @@
+#!/bin/bash
+#PBS -N install_vllm_env
+#PBS -l select=1:ncpus=4:mem=24GB
+#PBS -l walltime=01:00:00
+#PBS -m abe
+#PBS -j oe
+#PBS -o logs/install_vllm_env.$PBS_JOBID.log
+
+set -euo pipefail
+
+cd "$PBS_O_WORKDIR"
+mkdir -p logs
+
+# Optional cluster-specific environment setup:
+# module purge
+# module load python/3.12
+
+export PATH="$HOME/.local/bin:$PATH"
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv not found in PATH. Install uv first (for example under ~/.local/bin)." >&2
+  exit 1
+fi
+
+TORCH_BACKEND="${TORCH_BACKEND:-auto}"
+
+source .vllm-env/bin/activate
+
+# Install vLLM with torch backend selection, plus runtime deps used by experiment scripts.
+uv pip install --upgrade pip setuptools wheel
+uv pip install --torch-backend="${TORCH_BACKEND}" vllm dspy polars python-dotenv
+
+python - <<'PY'
+import dspy
+import polars
+import vllm
+print("vllm", vllm.__version__)
+print("dspy", dspy.__version__)
+print("polars", polars.__version__)
+PY
+
+echo "Environment updated at .vllm-env"
