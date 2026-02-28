@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #PBS -N install_vllm_env
-#PBS -l select=1:ncpus=4:mem=32GB:ngpus=1
+#PBS -l select=1:ncpus=4:mem=16GB:ngpus=1:gpu_id=A100:gpu_sliced=False
 #PBS -l walltime=01:00:00
 #PBS -m abe
 #PBS -j oe
@@ -14,6 +14,9 @@ JOB_TAG="${PBS_JOBID:-manual}"
 LOG_FILE="logs/install_vllm_env.${JOB_TAG}.log"
 exec >"${LOG_FILE}" 2>&1
 echo "Logging to ${LOG_FILE}"
+
+echo "GPU info:"
+nvidia-smi
 
 # Optional cluster-specific environment setup:
 # module purge
